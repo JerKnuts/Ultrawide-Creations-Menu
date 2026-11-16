@@ -1,0 +1,9 @@
+.xmake/
+build/
+releases/
+*.log
+*.pdb
+*.ilk
+*.user
+.vs/
+
