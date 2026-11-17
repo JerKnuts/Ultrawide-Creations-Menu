@@ -128,6 +128,7 @@ void InstallMarketplaceDetailBounds(std::uintptr_t base, float aspect)
     constexpr float visibleActionWidth = 3.0f * actionSlotWidth + actionWidgetWidth;
     static_assert(visibleActionWidth <= galleryWidth);
     constexpr float actionLeft = 100.0f + (galleryWidth - visibleActionWidth) / 2.0f;
+    constexpr float capacityLeft = actionLeft + actionListWidth + 40.0f;
     const float galleryShift = (std::max)(0.0f, shift - (400.0f - actionRowHeight));
     const float previewHeight = 1152.0f - galleryShift - previewTrim;
     const float previewWidth = previewHeight * 16.0f / 9.0f;
@@ -139,7 +140,10 @@ void InstallMarketplaceDetailBounds(std::uintptr_t base, float aspect)
         RectanglePatch{ 0x4F06420, { 2170, 180, 3740, 1758 }, { 2170, 180, 3740, 1758 - shift } },
         RectanglePatch{ 0x4F06450, { 0, 0, 3240, 1823 }, { 0, 0, fullscreenWidth, fullscreenHeight } },
         RectanglePatch{ 0x4F06470, { 2170, 1780, 3740, 1845 }, { 2170, 1780 - shift, 3740, 1845 - shift } },
-        RectanglePatch{ 0x4F064C0, { 2170, 1850, 3740, 1921 }, { 2170, 1850 - shift, 3740, 1921 - shift } },
+        // Installed items can expose five actions. Start the storage-capacity
+        // widget after that complete row so its bar and labels do not overlap.
+        RectanglePatch{ 0x4F064C0, { 2170, 1850, 3740, 1921 },
+            { capacityLeft, 1850 - shift, 3740, 1921 - shift } },
         RectanglePatch{ 0x4F064D0, { 100, 1573, 1120, 1973 },
             { actionLeft, 1573 - galleryShift, actionLeft + actionListWidth, 1573 - galleryShift + actionRowHeight } }
     };
@@ -265,6 +269,10 @@ void InstallMarketplaceDetailBounds(std::uintptr_t base, float aspect)
     // This rectangle is used only by the detail-action constructors. Match
     // their initial child widths to the horizontal list's smaller slots.
     UpdateMarketplaceValue(base, actionWidgetWidthRva, stockActionWidgetWidth, actionWidgetWidth, false);
+    // The download-progress control keeps a separate maximum fill width from
+    // its compacted action rectangle. Without updating it, the animated fill
+    // retains the stock 1020px width and draws behind the adjacent buttons.
+    UpdateMarketplaceValue(base, 0x2C3A263, stockActionWidgetWidth, actionWidgetWidth, true);
     UpdateMarketplaceValue(base, actionOrientationRva, stockOrientation, std::uint32_t{1}, true);
     constexpr std::uintptr_t detailsInputSlot = 0x4EFCBB8;
     originalDetailsInput = reinterpret_cast<DetailsInputHandler>(base + 0x2C3F6B0);
@@ -934,8 +942,77 @@ void InstallCompactMarketplaceHomeRows(std::uintptr_t base)
     RedirectMarketplaceConstant(base, 0x2C59AD6, 0x4F04C84, 0x4F04B1C); // Focus rise 80 -> 20
 }
 
+void InstallCompactMarketplaceLoadOrder(std::uintptr_t base, float aspect)
+{
+    // The stock page is authored for a 1920-logical-pixel viewport: its list
+    // ends at Y=1700 and each of the eight entry slots is 168 pixels tall.
+    // At 21:9 the logical viewport is only about 1607 pixels high, so the list
+    // continues underneath the command footer. Keep its bottom above that bar
+    // and fit ten smaller rows into the remaining space.
+    constexpr float stockListBottom = 1700.0f;
+    constexpr float footerClearance = 168.0f;
+    const float logicalHeight = 3840.0f / aspect;
+    const float listBottom = (std::min)(stockListBottom, logicalHeight - footerClearance);
+    UpdateMarketplaceValue(base, 0x4F06400,
+        std::array{ 100.0f, 300.0f, 2153.0f, stockListBottom },
+        std::array{ 100.0f, 300.0f, 2153.0f, listBottom }, false);
+
+    constexpr float compactRowHeight = 96.0f;
+    for (const auto operand : { 0x2C6F3EA, 0x2C6F8BE, 0x2C70D68 }) {
+        UpdateMarketplaceValue(base, operand, 168.0f, compactRowHeight, true);
+    }
+
+    // Keep the per-row child geometry inside the reduced card. The checkbox,
+    // selection backing, title, and metadata are separate native widgets.
+    UpdateMarketplaceValue(base, 0x4F06180, std::array{ 0.0f, 0.0f, 168.0f, 168.0f },
+        std::array{ 0.0f, 0.0f, compactRowHeight, compactRowHeight }, false);
+    UpdateMarketplaceValue(base, 0x4F06190, std::array{ 174.0f, 0.0f, 2040.0f, 168.0f },
+        std::array{ 102.0f, 0.0f, 2040.0f, compactRowHeight }, false);
+    UpdateMarketplaceValue(base, 0x4F06130, std::array{ 199.0f, 25.0f, 2015.0f, 143.0f },
+        std::array{ 128.0f, 8.0f, 2015.0f, 88.0f }, false);
+
+    // Row updates rebuild the text bounds, so redirect those calculations to
+    // the same compact values used by the constructor.
+    RedirectMarketplaceConstant(base, 0x2C709BC, 0x4F04D64, 0x4F04CF4); // Left 199 -> 128
+    RedirectMarketplaceConstant(base, 0x2C709C4, 0x4F04B60, 0x4F04A40); // Top 25 -> 8
+    RedirectMarketplaceConstant(base, 0x2C709E9, 0x4F04D1C, 0x4F06154); // Bottom 143 -> 88
+    RedirectMarketplaceConstant(base, 0x2C70A28, 0x4F04CBC, 0x4F04C28); // Metadata top 105 -> 58
+    RedirectMarketplaceConstant(base, 0x2C70A30, 0x4F04D3C, 0x4F04CAC); // Metadata bottom 168 -> 96
+
+    UpdateMarketplaceValue(base, 0x2C7019F, std::uint32_t{45}, std::uint32_t{32}, true);
+    UpdateMarketplaceValue(base, 0x2C701A7, std::uint32_t{49}, std::uint32_t{36}, true);
+    UpdateMarketplaceValue(base, 0x2C701C7, std::uint32_t{36}, std::uint32_t{24}, true);
+
+    // The native spacing formula lays out N rows as
+    // (list height - row height * N) / (N - 1). Match its constants and both
+    // scroll-limit calculations to the new ten-row window.
+    RedirectMarketplaceConstant(base, 0x2C70DAD, 0x4F04A40, 0x4F04A64); // 8 -> 10 rows
+    RedirectMarketplaceConstant(base, 0x2C70DB9, 0x4F04148, 0x4F040EC); // 1/7 -> 1/9
+    UpdateMarketplaceValue(base, 0x2C7110D, std::uint8_t{7}, std::uint8_t{9}, true);
+    UpdateMarketplaceValue(base, 0x2C71B1A, std::uint8_t{7}, std::uint8_t{9}, true);
+}
+
 void InstallCompactMarketplaceDialogs(std::uintptr_t base)
 {
+    // Keep the two-choice Load Order Archive dialog centered, but reduce its
+    // stock 2400-pixel width to a compact 1400-pixel presentation while
+    // retaining enough room for the longer Restore action label.
+    UpdateMarketplaceValue(base, 0x4F063B0,
+        std::array{ 720.0f, 830.0f, 3120.0f, 1330.0f },
+        std::array{ 1220.0f, 830.0f, 2620.0f, 1330.0f }, false);
+    UpdateMarketplaceValue(base, 0x4F06320,
+        std::array{ 720.0f, 830.0f, 3120.0f, 980.0f },
+        std::array{ 1220.0f, 830.0f, 2620.0f, 980.0f }, false);
+    UpdateMarketplaceValue(base, 0x4F06350,
+        std::array{ 750.0f, 860.0f, 3100.0f, 1010.0f },
+        std::array{ 1250.0f, 860.0f, 2600.0f, 1010.0f }, false);
+    UpdateMarketplaceValue(base, 0x4F06370,
+        std::array{ 740.0f, 1020.0f, 3090.0f, 1130.0f },
+        std::array{ 1240.0f, 1020.0f, 2590.0f, 1130.0f }, false);
+    UpdateMarketplaceValue(base, 0x4F063A0,
+        std::array{ 730.0f, 1180.0f, 3080.0f, 1290.0f },
+        std::array{ 1230.0f, 1180.0f, 2580.0f, 1290.0f }, false);
+
     // The notice background is sized from the text's measured height, but
     // centers against a separate copy of the stock text box height.
     constexpr std::uint32_t noticeTextBoxHeight = 373;
@@ -1094,6 +1171,7 @@ void PrepareUltrawideCreations()
         InstallCompactMarketplaceResultsGrid(marketplaceModule);
         InstallCompactMarketplaceBanner(marketplaceModule);
         InstallCompactMarketplaceHomeRows(marketplaceModule);
+        InstallCompactMarketplaceLoadOrder(marketplaceModule, aspect);
         InstallMarketplaceArtworkDrawGuard(marketplaceModule);
         InstallCompactMarketplaceDialogs(marketplaceModule);
         installed.store(true);

@@ -36,6 +36,18 @@ Discount ribbons and Bundle badges are separate native draw groups. Their
 rectangles, localized labels, and transforms must move together. Discounted
 bundles keep the green percentage ribbon above the dark Bundle label.
 
+## Load Order page
+
+The stock Load Order list ends at logical Y=1700 and spaces eight 168-pixel
+rows across its height. That bottom edge is below the footer-safe area at
+3440x1440. The compact layout derives the list bottom from the active logical
+viewport, reduces the entry widgets to 96 pixels, and updates the native row
+count, spacing, scrolling, selection, and text bounds as one unit.
+
+The Load Order Archive popup is a separate 2400x500 native dialog. Its compact
+layout keeps the stock two-row height while narrowing the frame, header, title,
+and both action bounds to a centered 1400-pixel width.
+
 ## Detail page
 
 The detail page uses a gallery, description column, action list, thumbnail
@@ -43,6 +55,10 @@ strip, and footer with independent native bounds. At ultrawide scale, the stock
 vertical layout extends below the command bar. The compact layout shortens the
 gallery, description, and action regions together and changes the action list
 to a horizontal row so drawing and input remain aligned.
+
+Installed Creations can expose five action buttons. Their compact horizontal
+row reaches into the stock storage-capacity region, so the capacity widget's
+left edge follows the end of the complete action row with a fixed gap.
 
 The fullscreen gallery target is a stock 3240x1823 rectangle. A 3440x1440
 storefront is about 1607 logical pixels tall, so the stock target extends beyond
@@ -59,5 +75,6 @@ coordinates outside the resized image and its true vertical center.
 The primary test configuration is 3440x1440 with Native Ultrawide Menus 6.0.
 A release pass should cover the first Creations entry after a cold launch,
 Home, View All, search, Options, free and paid items, discounts, bundles,
-detail actions, thumbnail navigation, fullscreen gallery navigation, mouse and
-controller input, repeated menu entry, and an extended artwork-browsing session.
+Load Order navigation through the first and last entries, detail actions,
+thumbnail navigation, fullscreen gallery navigation, mouse and controller
+input, repeated menu entry, and an extended artwork-browsing session.

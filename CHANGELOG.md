@@ -6,6 +6,41 @@ All notable changes to Ultrawide Creations Menu are documented here.
 
 No unreleased changes.
 
+## [0.5.14] - 2026-11-16
+
+- Reduced the Load Order Archive dialog from 1600 to 1400 logical pixels wide.
+- Recentered the dialog frame, header, title, and both archive actions.
+
+## [0.5.13] - 2026-11-16
+
+- Constrained the animated download-progress fill to the compact Download
+  button width.
+- Prevented download progress from drawing behind neighboring detail actions.
+
+## [0.5.12] - 2026-11-16
+
+- Reduced the Load Order Archive dialog from 2000 to 1600 logical pixels wide.
+- Recentered the frame, header, title, and both actions at the smaller size.
+
+## [0.5.11] - 2026-11-16
+
+- Reduced and recentered the Load Order Archive dialog width.
+- Kept the title, background, and both archive actions aligned with the smaller
+  window.
+
+## [0.5.10] - 2026-11-16
+
+- Shortened the detail page's storage-capacity bar from the left.
+- Prevented the capacity bar and labels from overlapping the five-button action
+  row shown for installed Creations.
+
+## [0.5.9] - 2026-11-16
+
+- Added a compact ten-row layout to the Load Order menu.
+- Capped the Load Order list above the command footer so the final entries no
+  longer run off the bottom of the ultrawide viewport.
+- Kept row geometry, text, selection, scrolling, and scrollbar limits in sync.
+
 ## [0.5.8] - 2026-11-15
 
 - Finalized the standalone project documentation and release structure.

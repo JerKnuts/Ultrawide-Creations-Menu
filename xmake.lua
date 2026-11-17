@@ -1,6 +1,6 @@
 set_xmakever("3.0.0")
 set_project("UltrawideCreationsMenu")
-set_version("0.5.8")
+set_version("0.5.14")
 set_arch("x64")
 set_languages("c++23")
 add_rules("mode.release")
