@@ -942,6 +942,41 @@ void InstallCompactMarketplaceHomeRows(std::uintptr_t base)
     RedirectMarketplaceConstant(base, 0x2C59AD6, 0x4F04C84, 0x4F04B1C); // Focus rise 80 -> 20
 }
 
+constexpr float compactLoadOrderRowHeight = 96.0f;
+using LoadOrderPointerActivate = void (*)(void*, const std::byte*);
+LoadOrderPointerActivate originalLoadOrderPointerActivate = nullptr;
+
+void ActivateLoadOrderCheckbox(void* page, const std::byte* hit)
+{
+    // Row hover/selection and keyboard commands use separate handlers.
+    constexpr std::uint32_t rowHit = 3;
+    if (!hit) {
+        return;
+    }
+    if (ReadMarketplaceField<std::uint32_t>(hit, 0x14) == rowHit) {
+        const auto* list = ReadMarketplaceField<const std::byte*>(static_cast<const std::byte*>(page), 0x88);
+        const auto window = GetForegroundWindow();
+        DWORD process = 0;
+        RECT client{};
+        POINT cursor{};
+        if (!list || !window || !GetWindowThreadProcessId(window, &process) ||
+            process != GetCurrentProcessId() || !GetClientRect(window, &client) ||
+            !GetCursorPos(&cursor) || !ScreenToClient(window, &cursor) ||
+            client.right <= client.left) {
+            return;
+        }
+
+        constexpr float logicalWidth = 3840.0f;
+        const float x = static_cast<float>(cursor.x) * logicalWidth /
+            static_cast<float>(client.right - client.left);
+        const float checkboxLeft = ReadMarketplaceField<float>(list, 0x20);
+        if (x < checkboxLeft || x >= checkboxLeft + compactLoadOrderRowHeight) {
+            return;
+        }
+    }
+    originalLoadOrderPointerActivate(page, hit);
+}
+
 void InstallCompactMarketplaceLoadOrder(std::uintptr_t base, float aspect)
 {
     // The stock page is authored for a 1920-logical-pixel viewport: its list
@@ -950,14 +985,15 @@ void InstallCompactMarketplaceLoadOrder(std::uintptr_t base, float aspect)
     // continues underneath the command footer. Keep its bottom above that bar
     // and fit ten smaller rows into the remaining space.
     constexpr float stockListBottom = 1700.0f;
+    constexpr float listTop = 300.0f;
     constexpr float footerClearance = 168.0f;
     const float logicalHeight = 3840.0f / aspect;
     const float listBottom = (std::min)(stockListBottom, logicalHeight - footerClearance);
     UpdateMarketplaceValue(base, 0x4F06400,
-        std::array{ 100.0f, 300.0f, 2153.0f, stockListBottom },
-        std::array{ 100.0f, 300.0f, 2153.0f, listBottom }, false);
+        std::array{ 100.0f, listTop, 2153.0f, stockListBottom },
+        std::array{ 100.0f, listTop, 2153.0f, listBottom }, false);
 
-    constexpr float compactRowHeight = 96.0f;
+    constexpr float compactRowHeight = compactLoadOrderRowHeight;
     for (const auto operand : { 0x2C6F3EA, 0x2C6F8BE, 0x2C70D68 }) {
         UpdateMarketplaceValue(base, operand, 168.0f, compactRowHeight, true);
     }
@@ -985,11 +1021,20 @@ void InstallCompactMarketplaceLoadOrder(std::uintptr_t base, float aspect)
 
     // The native spacing formula lays out N rows as
     // (list height - row height * N) / (N - 1). Match its constants and both
-    // scroll-limit calculations to the new ten-row window.
-    RedirectMarketplaceConstant(base, 0x2C70DAD, 0x4F04A40, 0x4F04A64); // 8 -> 10 rows
-    RedirectMarketplaceConstant(base, 0x2C70DB9, 0x4F04148, 0x4F040EC); // 1/7 -> 1/9
-    UpdateMarketplaceValue(base, 0x2C7110D, std::uint8_t{7}, std::uint8_t{9}, true);
-    UpdateMarketplaceValue(base, 0x2C71B1A, std::uint8_t{7}, std::uint8_t{9}, true);
+    // scroll-limit calculations. 32:9 has room for six rows with spacing.
+    const bool fitsTenRows = listBottom - listTop >= 10 * compactRowHeight;
+    RedirectMarketplaceConstant(base, 0x2C70DAD, 0x4F04A40, fitsTenRows ? 0x4F04A64 : 0x4F049EC);
+    RedirectMarketplaceConstant(base, 0x2C70DB9, 0x4F04148, fitsTenRows ? 0x4F040EC : 0x4F041CC);
+    const auto lastVisibleRow = fitsTenRows ? std::uint8_t{9} : std::uint8_t{5};
+    UpdateMarketplaceValue(base, 0x2C7110D, std::uint8_t{7}, lastVisibleRow, true);
+    UpdateMarketplaceValue(base, 0x2C71B1A, std::uint8_t{7}, lastVisibleRow, true);
+
+    // Reserve room for the Like icon at the right edge (2040 -> 1920).
+    RedirectMarketplaceConstant(base, 0x2C70A20, 0x4F04F04, 0x4F04EF8);
+
+    originalLoadOrderPointerActivate = reinterpret_cast<LoadOrderPointerActivate>(base + 0x2C61E30);
+    UpdateMarketplaceValue(base, 0x4EFDFB0, originalLoadOrderPointerActivate,
+        &ActivateLoadOrderCheckbox, false);
 }
 
 void InstallCompactMarketplaceDialogs(std::uintptr_t base)
@@ -1063,9 +1108,7 @@ void InstallCompactMarketplaceDialogs(std::uintptr_t base)
 }
 
 constexpr float minimumUltrawideAspect = 2.2f;
-constexpr std::uintptr_t mainSceneOwnerRva = 0x5FD9B78;
-constexpr std::uintptr_t marketplaceResizeRva = 0x13C58B0;
-constexpr std::uintptr_t marketplaceStartupRva = 0x2C32120;
+constexpr std::uintptr_t marketplaceConstructRva = 0x2C145D0;
 std::uintptr_t marketplaceModule = 0;
 
 struct ViewportSize
@@ -1096,38 +1139,7 @@ BOOL CALLBACK FindLargestProcessWindow(HWND window, LPARAM parameter)
     return TRUE;
 }
 
-ViewportSize GetUltrawideViewport()
-{
-    // On the first trip into Creations, Native Ultrawide Menus can widen the
-    // game scene after Marketplace begins initializing. The game window is
-    // already final at that point, so use it to break that startup cycle.
-    ViewportSize windowSize{};
-    EnumWindows(&FindLargestProcessWindow, reinterpret_cast<LPARAM>(&windowSize));
-
-    const auto* scene = *reinterpret_cast<const std::byte* const*>(marketplaceModule + mainSceneOwnerRva);
-    if (scene) {
-        const ViewportSize sceneSize{
-            ReadMarketplaceField<std::int32_t>(scene, 0x38),
-            ReadMarketplaceField<std::int32_t>(scene, 0x34)
-        };
-        if (sceneSize.width > 0 && sceneSize.height > 0 &&
-            static_cast<float>(sceneSize.width) / sceneSize.height >= minimumUltrawideAspect) {
-            return sceneSize;
-        }
-    }
-    if (windowSize.width > 0 && windowSize.height > 0 &&
-        static_cast<float>(windowSize.width) / windowSize.height >= minimumUltrawideAspect) {
-        return windowSize;
-    }
-
-    // SFSE's post-load event occurs before Starfield necessarily exposes a
-    // visible window. Native Ultrawide Menus selects its aspect from the same
-    // desktop, so this lets us install the Creations constants before the
-    // first disclaimer movie is constructed.
-    return { GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN) };
-}
-
-void PrepareUltrawideCreations()
+void PrepareUltrawideCreations(float width, float height)
 {
     static std::atomic_bool installed = false;
     if (installed.load()) {
@@ -1142,21 +1154,24 @@ void PrepareUltrawideCreations()
         return;
     }
 
-    const auto [width, height] = GetUltrawideViewport();
-    if (width <= 0 || height <= 0 || static_cast<float>(width) / height < minimumUltrawideAspect) {
+    if (!(width > 0 && height > 0 && width / height >= minimumUltrawideAspect)) {
         return;
     }
 
     static std::once_flag install;
     std::call_once(install, [width, height] {
-        // Remove the 16:9 cap only inside the storefront's resize method.
-        // The native path then calculates scale and pointer offsets from its
-        // own viewport, leaving the shared aspect constant untouched.
+        // Use the supplied movie area in both construction and resize.
+        // Leave the shared engine aspect constant untouched.
         constexpr std::uintptr_t capBranch = 0x13C59D3;
         constexpr std::array<unsigned char, 2> stock{ 0x77, 0x15 };
         constexpr std::array<unsigned char, 2> uncapped{ 0x66, 0x90 };
+        constexpr std::uintptr_t startupCap = 0x2C14995;
+        constexpr std::array<unsigned char, 2> startupStock{ 0x76, 0x49 };
+        constexpr std::array<unsigned char, 2> startupUncapped{ 0xEB, 0x49 };
         const auto* site = reinterpret_cast<const void*>(marketplaceModule + capBranch);
-        if (std::memcmp(site, stock.data(), stock.size()) != 0) {
+        const auto* startupSite = reinterpret_cast<const void*>(marketplaceModule + startupCap);
+        if (std::memcmp(site, stock.data(), stock.size()) != 0 ||
+            std::memcmp(startupSite, startupStock.data(), startupStock.size()) != 0) {
             REX::WARN("Ultrawide Creations Menu: unexpected storefront viewport branch");
             return;
         }
@@ -1165,7 +1180,12 @@ void PrepareUltrawideCreations()
             return;
         }
 
-        const float aspect = static_cast<float>(width) / height;
+        UpdateMarketplaceValue(marketplaceModule, startupCap, startupStock, startupUncapped, true);
+        if (std::memcmp(startupSite, startupUncapped.data(), startupUncapped.size()) != 0) {
+            return;
+        }
+
+        const float aspect = width / height;
         InstallMarketplaceDetailBounds(marketplaceModule, aspect);
         InstallMarketplaceResultsHeading(marketplaceModule);
         InstallCompactMarketplaceResultsGrid(marketplaceModule);
@@ -1175,15 +1195,31 @@ void PrepareUltrawideCreations()
         InstallMarketplaceArtworkDrawGuard(marketplaceModule);
         InstallCompactMarketplaceDialogs(marketplaceModule);
         installed.store(true);
-        REX::INFO("Ultrawide Creations Menu: enabled for {}x{} game render area", width, height);
+        REX::INFO("Ultrawide Creations Menu: layout initialized at {:.0f}x{:.0f}", width, height);
     });
 }
 
-template <std::uintptr_t target>
-void PrepareAndRunMarketplace()
+void PrepareAndConstructMarketplace(void* settings)
 {
-    PrepareUltrawideCreations();
-    reinterpret_cast<void (*)()>(marketplaceModule + target)();
+    // The caller reads the movie viewport before constructing the storefront.
+    const auto* bytes = static_cast<const std::byte*>(settings);
+    const auto width = ReadMarketplaceField<float>(bytes, 0x18);
+    const auto height = ReadMarketplaceField<float>(bytes, 0x1C);
+    ViewportSize window{};
+    EnumWindows(&FindLargestProcessWindow, reinterpret_cast<LPARAM>(&window));
+    REX::INFO("Ultrawide Creations Menu: Creations movie {:.0f}x{:.0f}, game window {}x{}",
+        width, height, window.width, window.height);
+
+    // The renderer can pillarbox the movie inside a wider window. For
+    // layout, use the tighter aspect to also tolerate a stale movie viewport
+    // immediately after changing display settings.
+    if (window.width > 0 && window.height > 0 && height > 0 &&
+        static_cast<float>(window.width) / window.height < width / height) {
+        PrepareUltrawideCreations(static_cast<float>(window.width), static_cast<float>(window.height));
+    } else {
+        PrepareUltrawideCreations(width, height);
+    }
+    reinterpret_cast<void (*)(void*)>(marketplaceModule + marketplaceConstructRva)(settings);
 }
 
 bool InstallMarketplaceEntryHooks()
@@ -1193,35 +1229,21 @@ bool InstallMarketplaceEntryHooks()
         return false;
     }
 
-    // Cover the storefront's viewport callback and its first native update.
-    // Both original calls are argument-free and stay in their normal order.
-    constexpr std::uintptr_t resizeCall = 0x13C5B5B;
-    constexpr std::uintptr_t startupCall = 0x13C5C25;
-    for (const auto& [address, target] : {
-             std::pair{ resizeCall, marketplaceResizeRva }, std::pair{ startupCall, marketplaceStartupRva } }) {
-        const auto* site = reinterpret_cast<const std::byte*>(base + address);
-        const auto destination = static_cast<std::intptr_t>(address + 5) + ReadMarketplaceField<std::int32_t>(site, 1);
-        if (ReadMarketplaceField<unsigned char>(site, 0) != 0xE8 || destination != target) {
-            REX::WARN("Ultrawide Creations Menu: unexpected storefront call at RVA {:#x}", address);
-            return false;
-        }
+    // Install the layout before the warning and Home widgets are built.
+    constexpr std::uintptr_t constructCall = 0x13C4EC0;
+    const auto* site = reinterpret_cast<const std::byte*>(base + constructCall);
+    const auto destination = static_cast<std::intptr_t>(constructCall + 5) +
+        ReadMarketplaceField<std::int32_t>(site, 1);
+    if (ReadMarketplaceField<unsigned char>(site, 0) != 0xE8 || destination != marketplaceConstructRva) {
+        REX::WARN("Ultrawide Creations Menu: unexpected storefront constructor call");
+        return false;
     }
 
     marketplaceModule = base;
     auto& trampoline = REL::GetTrampoline();
-    trampoline.write_call<5>(base + resizeCall, &PrepareAndRunMarketplace<marketplaceResizeRva>);
-    trampoline.write_call<5>(base + startupCall, &PrepareAndRunMarketplace<marketplaceStartupRva>);
-    FlushInstructionCache(GetCurrentProcess(), reinterpret_cast<const void*>(base + resizeCall), 5);
-    FlushInstructionCache(GetCurrentProcess(), reinterpret_cast<const void*>(base + startupCall), 5);
+    trampoline.write_call<5>(base + constructCall, &PrepareAndConstructMarketplace);
+    FlushInstructionCache(GetCurrentProcess(), site, 5);
     return true;
-}
-
-void OnSfseMessage(SFSE::MessagingInterface::Message* message)
-{
-    if (message && (message->type == SFSE::MessagingInterface::kPostLoad ||
-                       message->type == SFSE::MessagingInterface::kPostPostLoad)) {
-        PrepareUltrawideCreations();
-    }
 }
 }
 
@@ -1231,13 +1253,5 @@ SFSE_PLUGIN_LOAD(const SFSE::LoadInterface* sfse)
         return false;
     }
     SFSE::Init(sfse, { .trampoline = true, .trampolineSize = 128 });
-    if (!InstallMarketplaceEntryHooks()) {
-        return false;
-    }
-    const auto* messaging = SFSE::GetMessagingInterface();
-    if (!messaging || !messaging->RegisterListener(&OnSfseMessage)) {
-        return false;
-    }
-    PrepareUltrawideCreations();
-    return true;
+    return InstallMarketplaceEntryHooks();
 }

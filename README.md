@@ -1,4 +1,4 @@
-# Ultrawide Creations Menu 0.5.14
+# Ultrawide Creations Menu 0.5.17
 
 Ultrawide Creations Menu adapts Starfield's Creations storefront to the wide
 viewport supplied by Native Ultrawide Menus. It changes only the Creations
@@ -17,7 +17,9 @@ interface and leaves the main menu and other game menus to the companion mod.
 - Constrains fullscreen gallery artwork by height while preserving 16:9.
 - Centers fullscreen navigation arrows outside the image edges.
 - Gives the Options dialog enough height for every row.
-- Fits ten compact Load Order entries above the command footer.
+- Fits up to ten compact Load Order entries above the command footer.
+- Keeps the Like icon clear of the file size and version in Load Order.
+- Uses the left checkbox for mouse enable and disable actions in Load Order.
 - Keeps the installed-item action row clear of the storage-capacity bar.
 - Keeps animated download progress inside the compact Download button.
 - Uses a narrower, centered Load Order Archive dialog.
@@ -33,7 +35,7 @@ Disable other mods that patch the Creations storefront layout before testing.
 ## Installation with Mod Organizer 2
 
 1. Install and enable Native Ultrawide Menus 6.0.
-2. Install the MO2 archive from the [v0.5.14 GitHub release](../../releases/tag/v0.5.14).
+2. Install the [v0.5.15 MO2 archive](../../releases/tag/v0.5.15).
 3. Enable Ultrawide Creations Menu after Native Ultrawide Menus.
 4. Disable any older Ultrawide Creations Menu test entry.
 5. Launch Starfield through SFSE.
@@ -46,7 +48,7 @@ SFSE/Plugins/UltrawideCreationsMenu.dll
 
 ## Compatibility and testing
 
-Version 0.5.14 is built specifically for Starfield 1.16.244 and has been tested
+Version 0.5.17 targets Starfield 1.16.244. The baseline layout was tested
 at 3440x1440. Other 21:9 and 32:9 resolutions need community verification.
 Because the plugin patches runtime-specific native code, it should not be used
 after a Starfield update until compatibility has been confirmed.
@@ -72,6 +74,6 @@ ZIP with a SHA-256 checksum under `build/staging/`.
 
 ## Releases
 
-The [v0.5.14 GitHub release](../../releases/tag/v0.5.14) includes the installable
+The [v0.5.15 GitHub release](../../releases/tag/v0.5.15) includes the installable
 MO2 archive, source snapshot, and checksums. See [CHANGELOG.md](CHANGELOG.md) for
 the standalone mod's release history.

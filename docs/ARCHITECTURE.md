@@ -7,19 +7,16 @@ storefront initializes and reads the game render rectangle. It removes the
 function then derives drawing scale and pointer coordinates from the movie
 viewport.
 
-On the first storefront entry, the shared scene can still report its old
-16:9 bounds. The plugin uses the largest visible Starfield window's client
-area as the startup fallback, then prefers the engine scene after Native
-Ultrawide Menus has widened it. SFSE post-load installs the layout before the
-first disclaimer movie is constructed. If the game window does not exist yet,
-the current desktop dimensions provide the startup aspect.
+The storefront constructor hook reads the Creations movie viewport before
+the splash and Home widgets are created. Layout uses the movie aspect unless
+the visible game window is narrower. Both sizes are recorded in the log.
 
 Storefront-specific patches adjust Home, View All, search, details, Load Order,
 and Options. The Load Order pass derives a footer-safe list bottom from the
 logical viewport and changes its row geometry and scroll window together. Its
 archive popup uses a separate centered compact rectangle set.
-Detail page geometry uses the first ultrawide render rectangle seen in the
-session. The artwork draw guard checks the current cache entry before drawing
+Detail page geometry uses the first selected ultrawide aspect in the session.
+The artwork draw guard checks the current cache entry before drawing
 a tile. The storage-capacity widget begins after the full installed-item action
 row rather than sharing its horizontal space.
 

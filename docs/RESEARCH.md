@@ -15,10 +15,9 @@ path to derive its scale and pointer offsets from the wide movie viewport while
 leaving the game's shared aspect constant untouched.
 
 The first-entry disclaimer is constructed before the storefront resize and
-first-update callbacks. Ultrawide Creations Menu therefore installs its static
-layout during SFSE post-load. It prefers the live engine scene, then the largest
-visible Starfield window, and finally the current desktop dimensions while the
-game window is still being created.
+first-update callbacks. The constructor call at RVA `0x13C4EC0` receives
+the Creations movie width and height. The plugin installs layout patches there
+and bypasses the constructor's local aspect cap at RVA `0x2C14995`.
 
 ## Home and results layouts
 

@@ -6,6 +6,23 @@ All notable changes to Ultrawide Creations Menu are documented here.
 
 No unreleased changes.
 
+## [0.5.17] - 2026-11-26
+
+- Applied the compact layout before the warning splash and Home widgets are constructed.
+- Removed the storefront's startup aspect cap to match its resize behavior.
+- Logged the Creations movie and game window sizes separately to diagnose pillarboxing.
+
+## [0.5.16] - 2026-11-26
+
+- Waited for the game window before choosing the Creations layout dimensions.
+- Used a six-row Load Order layout when ten compact rows would not fit.
+
+## [0.5.15] - 2026-11-20
+
+- Kept the Like icon clear of file size and version in Load Order.
+- Limited mouse enable and disable actions in Load Order to the left checkbox.
+  Clicking the row still selects it for keyboard reordering with `X`.
+
 ## [0.5.14] - 2026-11-16
 
 - Reduced the Load Order Archive dialog from 1600 to 1400 logical pixels wide.
